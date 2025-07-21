@@ -29,15 +29,20 @@ metadata:
     traefik.ingress.kubernetes.io/transport.respondingTimeouts.idleTimeout: "600"
     traefik.ingress.kubernetes.io/transport.respondingTimeouts.readTimeout: "600"
     traefik.ingress.kubernetes.io/transport.respondingTimeouts.writeTimeout: "600"
+    cert-manager.io/cluster-issuer: selfsigned-issuer
 spec:
   rules:
-  - host: registry.${REGISTRY_API_HOSTNAME:-localhost}
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: ${USERNAME:-nuvolaris}-registry-api
-            port:
-              number: 5000
+    - host: registry.${REGISTRY_API_HOSTNAME:-localhost}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ${USERNAME:-nuvolaris}-registry-api
+                port:
+                  number: 5000
+  tls:
+    - hosts:
+        - registry.${REGISTRY_API_HOSTNAME:-localhost}
+      secretName: registry-tls

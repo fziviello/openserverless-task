@@ -44,7 +44,7 @@ spec:
               value: "${OW_APIHOST-http://controller:3233}"
             - name: HTTP_SERVER_PORT
               value: "5000"
-            - name: registry_ADDR
+            - name: REGISTRY_ADDR
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP

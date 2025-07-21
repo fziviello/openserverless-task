@@ -15,32 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: cert-manager.io/v1
+kind: Certificate
 metadata:
-  name: registry-ingress
+  name: registry-cert
   namespace: nuvolaris
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: 48m
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    cert-manager.io/cluster-issuer: selfsigned-issuer
 spec:
-  ingressClassName: nginx
-  rules:
-    - host: registry.${REGISTRY_API_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: nuvolaris-registry-api
-                port:
-                  number: 5000
-  tls:
-    - hosts:
-        - registry.miniops.me
-      secretName: registry-tls
+  secretName: registry-tls
+  dnsNames:
+    - registry.miniops.me
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+  duration: 8760h
+  renewBefore: 360h
