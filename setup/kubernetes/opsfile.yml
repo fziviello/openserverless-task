@@ -93,6 +93,9 @@ tasks:
   streamer:
     desc: deploy streamer
   
+  registry:
+    desc: deploy registry
+  
   status:
     desc: show nuvolaris cluster status
     silent: true
