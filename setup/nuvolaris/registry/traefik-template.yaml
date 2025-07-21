@@ -45,4 +45,4 @@ spec:
   tls:
     - hosts:
         - registry.${REGISTRY_API_HOSTNAME:-localhost}
-      secretName: registry-tls
+      secretName: registry-tls-secret
