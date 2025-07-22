@@ -43,4 +43,4 @@ spec:
   tls:
     - hosts:
         - registry.miniops.me
-      secretName: registry-tls-secret
+      secretName: registry-tls

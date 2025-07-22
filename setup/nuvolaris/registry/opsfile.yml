@@ -52,6 +52,9 @@ tasks:
       - envsubst -i ${INGRESS_TYPE}-template.yaml -o _ingress.yaml > /dev/null 2>&1
       - kubectl -n nuvolaris apply -f _registry.yaml > /dev/null 2>&1
       - kubectl -n nuvolaris apply -f _ingress.yaml > /dev/null 2>&1
+      - openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=registry.${REGISTRY_API_HOSTNAME}/O=Nuvolaris"
+      - kubectl -n nuvolaris delete secret registry-tls --ignore-not-found
+      - kubectl -n nuvolaris create secret tls registry-tls --cert=tls.crt --key=tls.key
       - |
         echo "Registry API deployed with HOSTNAME: registry.${REGISTRY_API_HOSTNAME} and OW_APIHOST: ${OW_APIHOST}"
 
@@ -63,6 +66,9 @@ tasks:
       - envsubst -i ${INGRESS_TYPE}-template.yaml -o _ingress.yaml > /dev/null 2>&1
       - kubectl -n nuvolaris delete -f _registry.yaml > /dev/null 2>&1
       - kubectl -n nuvolaris delete -f _ingress.yaml > /dev/null 2>&1
+      - kubectl -n nuvolaris delete secret registry-tls --ignore-not-found
+      - rm -f _registry.yaml _ingress.yaml
+      - rm -f tls.crt tls.key
       - echo "Registry API undeployed"
 
   update:
