@@ -55,6 +55,7 @@ tasks:
       - openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=registry.${REGISTRY_API_HOSTNAME}/O=Nuvolaris"
       - kubectl -n nuvolaris delete secret registry-tls --ignore-not-found
       - kubectl -n nuvolaris create secret tls registry-tls --cert=tls.crt --key=tls.key
+      - kubectl -n nuvolaris rollout restart statefulset ${USERNAME:-nuvolaris}-registry-api
       - |
         echo "Registry API deployed with HOSTNAME: registry.${REGISTRY_API_HOSTNAME} and OW_APIHOST: ${OW_APIHOST}"
 
