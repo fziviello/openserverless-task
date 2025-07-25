@@ -8,18 +8,17 @@ vars:
   DRY: ""
 
 tasks:
- 
   download-and-extract:
-     requires:
-       vars: 
-       - FILE
-       - URL
-       - OUT
-     cmds:
-     - echo "{{.OUT}} {{.FILE}} {{.URL}} {{.FILETAR}}" 
-     - curl -sL "{{.URL}}" -o {{.FILE}}
-     - extract "{{.FILE}}" "{{.OUT}}{{.EXE}}"
-     - remove "{{.FILE}}"
+    requires:
+      vars:
+        - FILE
+        - URL
+        - OUT
+    cmds:
+      - echo "{{.OUT}} {{.FILE}} {{.URL}} {{.FILETAR}}"
+      - curl -sL "{{.URL}}" -o {{.FILE}}
+      - extract "{{.FILE}}" "{{.OUT}}{{.EXE}}"
+      - remove "{{.FILE}}"
 
   download:
     requires:
@@ -30,29 +29,77 @@ tasks:
       - curl -sL -o"{{.OUT}}" "{{.URL}}"
       - executable "{{.OUT}}"
 
+  velero:
+    desc: Install and Config Velero
+    vars:
+      VERSION: "v1.16.1"
+      SUFFIX:
+        sh: |
+          case "{{.OS}}-{{.ARCH}}" in
+            linux-amd64) echo "linux-amd64.tar.gz" ;;
+            linux-arm64) echo "linux-arm64.tar.gz" ;;
+            darwin-amd64) echo "darwin-amd64.tar.gz" ;;
+            darwin-arm64) echo "darwin-amd64.tar.gz" ;;
+            windows-amd64) echo "windows-amd64.zip" ;;
+            *) echo "unknown" ;;
+          esac
+      URL: "https://github.com/vmware-tanzu/velero/releases/download/{{.VERSION}}/velero-{{.VERSION}}-{{.SUFFIX}}"
+      FILE: "{{base .URL}}"
+    cmds:
+      - echo "Checking if Velero CLI is already installed..."
+      - |
+        if command -v velero >/dev/null 2>&1; then
+          echo "Velero CLI already present: $(velero version --client-only)"
+        else
+          echo "Download and install Velero CLI..."
+          curl -sL "{{.URL}}" -o "{{.FILE}}"
+          mkdir -p velero_tmp
+          tar -xzf "{{.FILE}}" -C velero_tmp
+          sudo mv velero_tmp/velero/velero /usr/local/bin/
+          sudo chmod +x /usr/local/bin/velero
+          rm -rf velero_tmp "{{.FILE}}"
+          echo "Velero CLI installed in /usr/local/bin/velero"
+        fi
+      - echo "Check the 'velero' namespace in the cluster..."
+      - |
+        if ! kubectl get ns velero >/dev/null 2>&1; then
+          echo "Namespace 'velero' not found, I think."
+          kubectl create ns velero
+        else
+          echo "Namespace 'velero' already present."
+        fi
+      - echo "Installing Velero in the cluster"
+      - |
+        velero install \
+          --namespace velero \
+          --no-default-backup-location \
+          --use-volume-snapshots=false \
+          --no-secret \
+          --wait
+
   7zz:
     desc: download 7zz
     vars:
       VERSION: "2407"
       SUFFIX:
-         sh: |
-             case "{{.OS}}-{{.ARCH}}" in
-              linux-amd64) echo "7z{{.VERSION}}-linux-x64.tar.xz" ;;
-              linux-arm64) echo "7z{{.VERSION}}-linux-arm64.tar.xz" ;;
-              darwin-*) echo "7z{{.VERSION}}-mac.tar.xz" ;;
-              windows-*) echo "7zr.exe" ;;
-              *) echo "unknown" ;;
-             esac
+        sh: |
+          case "{{.OS}}-{{.ARCH}}" in
+           linux-amd64) echo "7z{{.VERSION}}-linux-x64.tar.xz" ;;
+           linux-arm64) echo "7z{{.VERSION}}-linux-arm64.tar.xz" ;;
+           darwin-*) echo "7z{{.VERSION}}-mac.tar.xz" ;;
+           windows-*) echo "7zr.exe" ;;
+           *) echo "unknown" ;;
+          esac
       URL: "https://7-zip.org/a/{{.SUFFIX}}"
       FILE: "{{base .URL}}"
     cmds:
-    - curl -sL "{{.URL}}"  -o "{{.FILE}}"
-    - |
-      if test "{{.OS}}" == "windows" 
-      then rename 7zr.exe 7zz.exe
-      else extract "{{.FILE}}" 7zz
-      fi
-    - if test -e "{{.FILE}}" ; then remove "{{.FILE}}" ; fi
+      - curl -sL "{{.URL}}"  -o "{{.FILE}}"
+      - |
+        if test "{{.OS}}" == "windows" 
+        then rename 7zr.exe 7zz.exe
+        else extract "{{.FILE}}" 7zz
+        fi
+      - if test -e "{{.FILE}}" ; then remove "{{.FILE}}" ; fi
 
   coreutils:
     desc: download coreutils
@@ -62,36 +109,36 @@ tasks:
       VERSION: "0.0.27"
       SUFFIX:
         sh: |
-            case "{{.OS}}-{{.ARCH}}" in
-            linux-amd64) echo "x86_64-unknown-linux-gnu" ;;
-            linux-arm64) echo "aarch64-unknown-linux-gnu" ;;
-            darwin-amd64) echo "x86_64-apple-darwin" ;;
-            darwin-arm64) echo "aarch64-apple-darwin" ;; 
-            windows-*) echo "x86_64-pc-windows-gnu" ;;
-            *) echo "unknown" ;;
-            esac
-      URL: "https://github.com/uutils/coreutils/releases/download/{{.VERSION}}/coreutils-{{.VERSION}}-{{.SUFFIX}}{{.ARC}}" 
+          case "{{.OS}}-{{.ARCH}}" in
+          linux-amd64) echo "x86_64-unknown-linux-gnu" ;;
+          linux-arm64) echo "aarch64-unknown-linux-gnu" ;;
+          darwin-amd64) echo "x86_64-apple-darwin" ;;
+          darwin-arm64) echo "aarch64-apple-darwin" ;; 
+          windows-*) echo "x86_64-pc-windows-gnu" ;;
+          *) echo "unknown" ;;
+          esac
+      URL: "https://github.com/uutils/coreutils/releases/download/{{.VERSION}}/coreutils-{{.VERSION}}-{{.SUFFIX}}{{.ARC}}"
       FILE: "{{base .URL}}"
       OUT: coreutils
     cmds:
-    - task: download-and-extract
-      vars:
-        URL: "{{.URL}}"
-        FILE: "{{.FILE}}"
-        OUT: coreutils
+      - task: download-and-extract
+        vars:
+          URL: "{{.URL}}"
+          FILE: "{{.FILE}}"
+          OUT: coreutils
 
   bun:
     desc: download bun
     vars:
       VERSION: "1.2.5"
       ARCH2: '{{if eq .ARCH "amd64"}}x64{{else}}aarch64{{end}}'
-      URL: 'https://github.com/oven-sh/bun/releases/download/bun-v{{.VERSION}}/bun-{{.OS}}-{{.ARCH2}}.zip'
-      FILE: '{{base .URL}}'
+      URL: "https://github.com/oven-sh/bun/releases/download/bun-v{{.VERSION}}/bun-{{.OS}}-{{.ARCH2}}.zip"
+      FILE: "{{base .URL}}"
     cmds:
-    - echo "{{.URL}}"
-    - curl -sL "{{.URL}}" -o "{{.FILE}}"
-    - extract "{{.FILE}}" bun{{.EXE}}
-    - remove "{{.FILE}}"
+      - echo "{{.URL}}"
+      - curl -sL "{{.URL}}" -o "{{.FILE}}"
+      - extract "{{.FILE}}" bun{{.EXE}}
+      - remove "{{.FILE}}"
 
   kubectl:
     desc: download kubectl
@@ -106,7 +153,7 @@ tasks:
   kind:
     desc: download kind
     vars:
-      VERSION: 0.29.0
+      VERSION: 0.26.0
     cmds:
       - task: download
         vars:
@@ -118,21 +165,21 @@ tasks:
     vars:
       VERSION: 0.13.6
       BASE: "https://github.com/alexellis/k3sup/releases/download/{{.VERSION}}"
-      FILE: 
+      FILE:
         sh: |
-            case {{.OS}}-{{.ARCH}} in
-            (linux-amd64)   echo k3sup ;;
-            (linux-arm64)   echo k3sup-arm64 ;;
-            (darwin-amd64)  echo k3sup-darwin ;;
-            (darwin-arm64)  echo k3sup-darwin-arm64 ;;
-            (windows-amd64) echo k3sup.exe ;;
-            esac
+          case {{.OS}}-{{.ARCH}} in
+          (linux-amd64)   echo k3sup ;;
+          (linux-arm64)   echo k3sup-arm64 ;;
+          (darwin-amd64)  echo k3sup-darwin ;;
+          (darwin-arm64)  echo k3sup-darwin-arm64 ;;
+          (windows-amd64) echo k3sup.exe ;;
+          esac
     cmds:
       - task: download
         vars:
           URL: "{{.BASE}}/{{.FILE}}"
           OUT: k3sup
-  
+
   rg:
     desc: download ripgrep
     vars:
@@ -141,68 +188,68 @@ tasks:
       VERSION: "14.1.0"
       SUFFIX:
         sh: |
-            case "{{.OS}}-{{.ARCH}}" in
-            linux-amd64) echo "x86_64-unknown-linux-musl" ;;
-            linux-arm64) echo "aarch64-unknown-linux-gnu" ;;
-            darwin-amd64) echo "x86_64-apple-darwin" ;;
-            darwin-arm64) echo "aarch64-apple-darwin" ;; 
-            windows-*) echo "x86_64-pc-windows-msvc" ;;
-            *) echo "unknown" ;;
-            esac
-      URL: "https://github.com/BurntSushi/ripgrep/releases/download/{{.VERSION}}/ripgrep-{{.VERSION}}-{{.SUFFIX}}{{.ARC}}" 
+          case "{{.OS}}-{{.ARCH}}" in
+          linux-amd64) echo "x86_64-unknown-linux-musl" ;;
+          linux-arm64) echo "aarch64-unknown-linux-gnu" ;;
+          darwin-amd64) echo "x86_64-apple-darwin" ;;
+          darwin-arm64) echo "aarch64-apple-darwin" ;; 
+          windows-*) echo "x86_64-pc-windows-msvc" ;;
+          *) echo "unknown" ;;
+          esac
+      URL: "https://github.com/BurntSushi/ripgrep/releases/download/{{.VERSION}}/ripgrep-{{.VERSION}}-{{.SUFFIX}}{{.ARC}}"
       FILE: "{{base .URL}}"
       OUT: rg
     cmds:
-    - task: download-and-extract
-      vars:
-        URL: "{{.URL}}"
-        FILE: "{{.FILE}}"
-        OUT: "{{.OUT}}"
+      - task: download-and-extract
+        vars:
+          URL: "{{.URL}}"
+          FILE: "{{.FILE}}"
+          OUT: "{{.OUT}}"
 
   uv:
     desc: install uv
     vars:
-      VERSION: "0.7.19"
+      VERSION: "0.6.7"
       FILE:
-         sh: |
-             case "{{.OS}}-{{.ARCH}}" in
-              linux-amd64) echo uv-x86_64-unknown-linux-gnu.tar.gz ;;
-              linux-arm64) echo uv-aarch64-unknown-linux-gnu.tar.gz ;;
-              darwin-arm64) echo uv-aarch64-apple-darwin.tar.gz ;;
-              darwin-amd64) echo uv-x86_64-apple-darwin.tar.gz ;;
-              windows-*) echo uv-x86_64-pc-windows-msvc.zip ;;
-              *) echo "unknown" ;;
-             esac
+        sh: |
+          case "{{.OS}}-{{.ARCH}}" in
+           linux-amd64) echo uv-x86_64-unknown-linux-gnu.tar.gz ;;
+           linux-arm64) echo uv-aarch64-unknown-linux-gnu.tar.gz ;;
+           darwin-arm64) echo uv-aarch64-apple-darwin.tar.gz ;;
+           darwin-amd64) echo uv-x86_64-apple-darwin.tar.gz ;;
+           windows-*) echo uv-aarch64-pc-windows-msvc.zip ;;
+           *) echo "unknown" ;;
+          esac
       URL: "https://github.com/astral-sh/uv/releases/download/{{.VERSION}}/{{.FILE}}"
       OUT: uv
     cmds:
-    - curl -sL "{{.URL}}"  -o "{{.FILE}}"
-    - extract "{{.FILE}}" "{{.OUT}}{{.EXE}}"
-    - remove "{{.FILE}}"
+      - curl -sL "{{.URL}}"  -o "{{.FILE}}"
+      - extract "{{.FILE}}" "{{.OUT}}{{.EXE}}"
+      - remove "{{.FILE}}"
 
-  #hugo:
-  #  desc: download hugo
-  #  vars:
-  #    VERSION: 0.145.0
-  #    SUFFIX:
-  #       sh: |
-  #           case "{{.OS}}-{{.ARCH}}" in
-  #            linux-amd64) echo Linux-64bit.tar.gz ;;
-  #            linux-arm64) echo "linux-arm64.tar.gz" ;;
-  #            darwin-arm64) echo darwin-universal.tar.gz ;;
-  #            darwin-amd64) echo darwin-universal.tar.gz ;;
-  #            windows-*) echo windows-amd64.zip ;;
-  #            *) echo "unknown" ;;
-  #           esac
-  #    URL: "https://github.com/gohugoio/hugo/releases/download/v{{.VERSION}}/hugo_extended_{{.VERSION}}_{{.SUFFIX}}"
-  #    FILE: "{{base .URL}}"
-  #    OUT: hugo
-  #  cmds:
-  #  - task: download-and-extract
-  #    vars:
-  #      URL: "{{.URL}}"
-  #      FILE: "{{.FILE}}"
-  #      OUT: "{{.OUT}}"
+  hugo:
+    desc: download hugo
+    vars:
+      VERSION: 0.145.0
+      SUFFIX:
+        sh: |
+          case "{{.OS}}-{{.ARCH}}" in
+           linux-amd64) echo Linux-64bit.tar.gz ;;
+           linux-arm64) echo "linux-arm64.tar.gz" ;;
+           darwin-arm64) echo darwin-universal.tar.gz ;;
+           darwin-amd64) echo darwin-universal.tar.gz ;;
+           windows-*) echo windows-amd64.zip ;;
+           *) echo "unknown" ;;
+          esac
+      URL: "https://github.com/gohugoio/hugo/releases/download/v{{.VERSION}}/hugo_extended_{{.VERSION}}_{{.SUFFIX}}"
+      FILE: "{{base .URL}}"
+      OUT: hugo
+    cmds:
+      - task: download-and-extract
+        vars:
+          URL: "{{.URL}}"
+          FILE: "{{.FILE}}"
+          OUT: "{{.OUT}}"
 
   helm:
     desc: download helm
@@ -228,105 +275,53 @@ tasks:
           FILE: "{{.FILE}}"
           OUT: "{{.OUT}}"
 
-  #k3d:
-  #  desc: download k3d
-  #  vars:
-  #    VERSION: "5.6.3"
-  #    SUFFIX:
-  #      sh: |
-  #        case "{{.OS}}-{{.ARCH}}" in
-  #          linux-amd64) echo "k3d-linux-amd64" ;;
-  #          linux-arm64) echo "k3d-linux-arm64" ;;
-  #          darwin-amd64) echo "k3d-darwin-amd64" ;;
-  #          darwin-arm64) echo "k3d-darwin-arm64" ;;
-  #         windows-amd64) echo "k3d-windows-amd64.exe" ;;
-  #          *) echo "unknown" ;;
-  #        esac
-  #    URL: "https://github.com/k3d-io/k3d/releases/download/v{{.VERSION}}/{{.SUFFIX}}"
-  #    OUT: k3d
-  #  cmds:
-  #    - task: download
-  #      vars:
-  #        URL: "{{.URL}}"
-  #        OUT: "{{.OUT}}{{.EXE}}"
-
-
-  zip:
-    desc: ensure zip is available
+  k3d:
+    desc: download k3d
     vars:
-       VERSION: 3.0-1
-       ZIP_EXE: "https://github.com/nuvolaris/zip/raw/refs/heads/master/zip.exe"
-    cmds:
-    - |
-      case "{{.OS}}-{{.ARCH}}" in
-      darwin-*) touch zip ;;
-      linux-*)
-        cat >zip <<EOF
-      #!/bin/bash
-      if test -x /bin/zip -o -x /usr/bin/zip -o -x /usr/local/bin/zip
-      then rm "\$0" ; exec zip "\$@"
-      else echo "Please install zip in your system." ; exit 1
-      fi
-      EOF
-        executable zip
-      ;; 
-      windows-*)
-         curl -sL "{{.ZIP_EXE}}" -o zip.exe
-         executable zip.exe
-      ;;
-      esac
-
-  kubefwd:
-    desc: download kubefwd
-    vars:
-      VERSION: "1.22.5"
+      VERSION: "5.6.3"
       SUFFIX:
         sh: |
-            case "{{.OS}}-{{.ARCH}}" in
-            linux-amd64) echo "_Linux_x86_64" ;;
-            linux-arm64) echo "_Linux_arm64" ;;
-            darwin-amd64) echo "_Darwin_x86_64" ;;
-            darwin-arm64) echo "_Darwin_arm64" ;; 
-            windows-*) echo "_Windows_x86_64" ;;
+          case "{{.OS}}-{{.ARCH}}" in
+            linux-amd64) echo "k3d-linux-amd64" ;;
+            linux-arm64) echo "k3d-linux-arm64" ;;
+            darwin-amd64) echo "k3d-darwin-amd64" ;;
+            darwin-arm64) echo "k3d-darwin-arm64" ;;
+            windows-amd64) echo "k3d-windows-amd64.exe" ;;
             *) echo "unknown" ;;
-            esac
-            #https://github.com/txn2/kubefwd/releases/download/1.22.5/kubefwd_Darwin_x86_64.tar.gz
-      URL: "https://github.com/txn2/kubefwd/releases/download/{{.VERSION}}/kubefwd{{.SUFFIX}}{{.ARC}}" 
-      FILE: "{{base .URL}}"
-      OUT: kubefwd
+          esac
+      URL: "https://github.com/k3d-io/k3d/releases/download/v{{.VERSION}}/{{.SUFFIX}}"
+      OUT: k3d
     cmds:
-    - task: download-and-extract
-      vars:
-        URL: "{{.URL}}"
-        FILE: "{{.FILE}}"
-        OUT: kubefwd
+      - task: download
+        vars:
+          URL: "{{.URL}}"
+          OUT: "{{.OUT}}{{.EXE}}"
 
   all:
     - task: 7zz
-    - task: coreutils    
+    - task: coreutils
     - task: bun
     - task: kind
     - task: k3sup
     - task: kubectl
     - task: rg
     - task: uv
+    - task: hugo
     - task: helm
-    - task: kubefwd
-    - task: zip
-    #- task: hugo
-    #- task: k3d
-    
+    - task: k3d
+    - task: velero
+
   test:
     vars:
       DIR: "{{.OPS_PWD}}/bin/{{.OS}}-{{.ARCH}}"
     cmds:
-    - |
-      {{.DRY}} rm -Rvf {{.DIR}}
-      mkdir -p {{.DIR}}
-      cd {{.DIR}}
-      {{.DRY}} ops -task -t ../../prereq.yml -d {{.DIR}} all
-    - task: check
-      
+      - |
+        {{.DRY}} rm -Rvf {{.DIR}}
+        mkdir -p {{.DIR}}
+        cd {{.DIR}}
+        {{.DRY}} ops -task -t ../../prereq.yml -d {{.DIR}} all
+      - task: check
+
   check:
     vars:
       DIR: "{{.OPS_PWD}}/bin/{{.OS}}-{{.ARCH}}"
@@ -339,17 +334,16 @@ tasks:
           (*) unknown ;;
           esac
     sources:
-      - '{{.DIR}}/*'
+      - "{{.DIR}}/*"
     status:
       - false
     cmds:
-    - for: sources
-      cmd: filetype -m {{.ITEM}} | rg {{.FILETYPE}}
- 
+      - for: sources
+        cmd: filetype -m {{.ITEM}} | rg {{.FILETYPE}}
+
   tests:
-   - __OS=linux   __ARCH=amd64 ops -task -t prereq.yml test
-   - __OS=linux   __ARCH=arm64 ops -task -t prereq.yml test
-   - __OS=darwin  __ARCH=amd64 ops -task -t prereq.yml test
-   - __OS=darwin  __ARCH=arm64 ops -task -t prereq.yml test
-   - __OS=windows __ARCH=amd64 ops -task -t prereq.yml test
-      
+    - __OS=linux   __ARCH=amd64 ops -task -t prereq.yml test
+    - __OS=linux   __ARCH=arm64 ops -task -t prereq.yml test
+    - __OS=darwin  __ARCH=amd64 ops -task -t prereq.yml test
+    - __OS=darwin  __ARCH=arm64 ops -task -t prereq.yml test
+    - __OS=windows __ARCH=amd64 ops -task -t prereq.yml test
